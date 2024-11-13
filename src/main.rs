@@ -1,28 +1,28 @@
-use metis::Graph;
+#![deny(warnings)]
+
+use mpi::traits::*;
 
 fn main() {
-    println!("Hello, world!");
-    let xadj = &mut [0, 2, 5, 8, 11, 13, 16, 20, 24, 28, 31, 33, 36, 39, 42, 44];
-    let adjncy = &mut [
-        1, 5,
-        0, 2, 6,
-        1, 3, 7,
-        2, 4, 8,
-        3, 9,
-        0, 6, 10,
-        1, 5, 7, 11,
-        2, 6, 8, 12,
-        3, 7, 9, 13,
-        4, 8, 14,
-        5, 11,
-        6, 10, 12,
-        7, 11, 13,
-        8, 12, 14,
-        9, 13,
-    ];
-    let mut part = vec![0x00; 15];
-    Graph::new(1, 2, xadj, adjncy)
-        .part_recursive(&mut part)
-        .unwrap();
-    println!("{:?}", part);
+    let universe = mpi::initialize().unwrap();
+    let world = universe.world();
+    let receiver_rank = 0;
+
+    if world.rank() == receiver_rank {
+        let n = (world.size() - 1) as usize;
+        let mut buf = vec![0u64; 2 * n];
+        for x in buf[0..n].iter_mut() {
+            world.any_process().receive_into(x);
+        }
+        world.barrier();
+        for x in buf[n..2 * n].iter_mut() {
+            world.any_process().receive_into(x);
+        }
+        println!("{:?}", buf);
+        assert!(buf[0..n].iter().all(|&x| x == 1));
+        assert!(buf[n..2 * n].iter().all(|&x| x == 2));
+    } else {
+        world.process_at_rank(0).send(&1u64);
+        world.barrier();
+        world.process_at_rank(0).send(&2u64);
+    }
 }
